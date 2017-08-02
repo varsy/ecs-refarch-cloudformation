@@ -18,3 +18,9 @@ resource "aws_s3_bucket_object" "infra-vpc" {
   etag = "${md5(file("../infrastructure/vpc.yaml"))}"
 }
 
+resource "aws_s3_bucket_object" "infra-security-groups" {
+  bucket = "${aws_s3_bucket.cloudformation.bucket}"
+  key = "infrastructure/security-groups.yaml"
+  source = "../infrastructure/security-groups.yaml"
+  etag = "${md5(file("../infrastructure/security-groups.yaml"))}"
+}

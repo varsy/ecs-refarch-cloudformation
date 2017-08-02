@@ -23,13 +23,13 @@ Resources:
                 PublicSubnet1CIDR:  10.180.8.0/21
                 PrivateSubnet1CIDR: 10.180.24.0/21
 
-#    SecurityGroups:
-#        Type: AWS::CloudFormation::Stack
-#        Properties:
-#            TemplateURL: https://s3.amazonaws.com/tc-tf-test.jetbrains.com/infrastructure/security-groups.yaml
-#            Parameters:
-#                EnvironmentName: !Ref AWS::StackName
-#                VPC: !GetAtt VPC.Outputs.VPC
+    SecurityGroups:
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: https://s3.amazonaws.com/tc-tf-test.jetbrains.com/infrastructure/security-groups.yaml
+            Parameters:
+                EnvironmentName: !Ref AWS::StackName
+                VPC: !GetAtt VPC.Outputs.VPC
 #
 #    ALB:
 #        Type: AWS::CloudFormation::Stack
