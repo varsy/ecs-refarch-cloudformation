@@ -25,13 +25,13 @@ Resources:
     LoadBalancer:
         Type: AWS::ElasticLoadBalancingV2::LoadBalancer
         Properties:
-            Name: !Ref EnvironmentName
+            Name: !Join [ "-", [TeamCity, !Ref EnvironmentName ] ]
             Subnets: !Ref Subnets
             SecurityGroups: 
                 - !Ref SecurityGroup
             Tags: 
                 - Key: Name
-                  Value: !Ref EnvironmentName
+                  Value: !Join [ "-", [TeamCity, !Ref EnvironmentName ] ]
 
     LoadBalancerListener:
         Type: AWS::ElasticLoadBalancingV2::Listener

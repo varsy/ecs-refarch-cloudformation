@@ -24,3 +24,10 @@ resource "aws_s3_bucket_object" "infra-security-groups" {
   source = "../infrastructure/security-groups.yaml"
   etag = "${md5(file("../infrastructure/security-groups.yaml"))}"
 }
+
+resource "aws_s3_bucket_object" "infra-load-balancers" {
+  bucket = "${aws_s3_bucket.cloudformation.bucket}"
+  key = "infrastructure/load-balancers.yaml"
+  source = "../infrastructure/load-balancers.yaml"
+  etag = "${md5(file("../infrastructure/load-balancers.yaml"))}"
+}
