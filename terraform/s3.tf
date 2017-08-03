@@ -31,3 +31,10 @@ resource "aws_s3_bucket_object" "infra-load-balancers" {
   source = "../infrastructure/load-balancers.yaml"
   etag = "${md5(file("../infrastructure/load-balancers.yaml"))}"
 }
+
+resource "aws_s3_bucket_object" "infra-ecs-cluster" {
+  bucket = "${aws_s3_bucket.cloudformation.bucket}"
+  key = "infrastructure/ecs-cluster.yaml"
+  source = "../infrastructure/ecs-cluster.yaml"
+  etag = "${md5(file("../infrastructure/ecs-cluster.yaml"))}"
+}

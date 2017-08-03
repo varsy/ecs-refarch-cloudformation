@@ -44,35 +44,35 @@ Mappings:
     # (note the AMI identifier is region specific) 
 
     AWSRegionToAMI:
-        us-east-1:
-            AMI: ami-b2df2ca4
-        us-east-2:
-            AMI: ami-832b0ee6
-        us-west-1:
-            AMI: ami-dd104dbd
-        us-west-2:
-            AMI: ami-022b9262
-        eu-west-1:
-            AMI: ami-a7f2acc1
-        eu-west-2:
-            AMI: ami-3fb6bc5b
-        eu-central-1:
-            AMI: ami-ec2be583
-        ap-northeast-1:
-            AMI: ami-c393d6a4
-        ap-southeast-1:
-            AMI: ami-a88530cb
-        ap-southeast-2:
-            AMI: ami-8af8ffe9
-        ca-central-1:
-            AMI: ami-ead5688e
+      us-east-1:
+          AMI: ami-04351e12
+      us-east-2:
+          AMI: ami-207b5a45
+      us-west-1:
+          AMI: ami-7d664a1d
+      us-west-2:
+          AMI: ami-57d9cd2e
+      eu-west-1:
+          AMI: ami-809f84e6
+      eu-west-2:
+          AMI: ami-ff15039b
+      eu-central-1:
+          AMI: ami-a3a006cc
+      ap-northeast-1:
+          AMI: ami-e4657283
+      ap-southeast-1:
+          AMI: ami-19f7787a
+      ap-southeast-2:
+          AMI: ami-42e9f921
+      ca-central-1:
+          AMI: ami-3da81759
 
 Resources:
 
     ECSCluster:
         Type: AWS::ECS::Cluster
         Properties:
-            ClusterName: !Ref EnvironmentName
+            ClusterName: !Join [ "-", [TeamCity, !Ref EnvironmentName ] ]
 
     ECSAutoScalingGroup:
         Type: AWS::AutoScaling::AutoScalingGroup
@@ -84,7 +84,7 @@ Resources:
             DesiredCapacity: !Ref ClusterSize
             Tags: 
                 - Key: Name
-                  Value: !Sub ${EnvironmentName} ECS host
+                  Value: !Sub TeamCity ${EnvironmentName} ECS host
                   PropagateAtLaunch: true
         CreationPolicy:
             ResourceSignal: 
@@ -155,7 +155,7 @@ Resources:
         Type: AWS::IAM::Role
         Properties: 
             Path: /
-            RoleName: !Sub ${EnvironmentName}-ECSRole-${AWS::Region}
+            RoleName: !Sub TeamCity-${EnvironmentName}-ECSRole-${AWS::Region}
             AssumeRolePolicyDocument: |
                 {
                     "Statement": [{

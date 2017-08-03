@@ -42,19 +42,19 @@ Resources:
                 VPC: !GetAtt VPC.Outputs.VPC
                 Subnets: !GetAtt VPC.Outputs.PublicSubnets
                 SecurityGroup: !GetAtt SecurityGroups.Outputs.LoadBalancerSecurityGroup
-#
-#    ECS:
-#        Type: AWS::CloudFormation::Stack
-#        Properties:
-#            TemplateURL: https://s3.amazonaws.com/tc-tf-test.jetbrains.com/infrastructure/ecs-cluster.yaml
-#            Parameters:
-#                EnvironmentName: !Ref AWS::StackName
-#                InstanceType: t2.large
-#                ClusterSize: 1
-#                VPC: !GetAtt VPC.Outputs.VPC
-#                SecurityGroup: !GetAtt SecurityGroups.Outputs.ECSHostSecurityGroup
-#                Subnets: !GetAtt VPC.Outputs.PrivateSubnets
-#
+
+    ECS:
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: https://s3.amazonaws.com/tc-tf-test.jetbrains.com/infrastructure/ecs-cluster.yaml
+            Parameters:
+                EnvironmentName: !Ref AWS::StackName
+                InstanceType: t2.large
+                ClusterSize: 1
+                VPC: !GetAtt VPC.Outputs.VPC
+                SecurityGroup: !GetAtt SecurityGroups.Outputs.ECSHostSecurityGroup
+                Subnets: !GetAtt VPC.Outputs.PrivateSubnets
+
 ##    ProductService:
 ##        Type: AWS::CloudFormation::Stack
 ##        Properties:
