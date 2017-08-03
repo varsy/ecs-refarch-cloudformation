@@ -38,3 +38,10 @@ resource "aws_s3_bucket_object" "infra-ecs-cluster" {
   source = "../infrastructure/ecs-cluster.yaml"
   etag = "${md5(file("../infrastructure/ecs-cluster.yaml"))}"
 }
+
+resource "aws_s3_bucket_object" "infra-teamcity-server" {
+  bucket = "${aws_s3_bucket.cloudformation.bucket}"
+  key = "teamcity/server.yaml"
+  source = "../teamcity/server.yaml"
+  etag = "${md5(file("../teamcity/server.yaml"))}"
+}
