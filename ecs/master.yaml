@@ -55,6 +55,19 @@ Resources:
                 SecurityGroup: !GetAtt SecurityGroups.Outputs.ECSHostSecurityGroup
                 Subnets: !GetAtt VPC.Outputs.PrivateSubnets
 
+    RDS:
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: https://s3.amazonaws.com/tc-tf-test.jetbrains.com/infrastructure/rds.yaml
+            Parameters:
+                EnvironmentName: !Ref AWS::StackName
+                InstanceType: db.t2.small
+                SecurityGroup: !GetAtt SecurityGroups.Outputs.ECSHostSecurityGroup
+                PrivateSubnet1: !GetAtt VPC.Outputs.PrivateSubnet1
+                PrivateSubnet2: !GetAtt VPC.Outputs.PrivateSubnet2
+                DBUser: TeamCity
+                DBPassword: TCPassword
+
     TeamCityServer:
         Type: AWS::CloudFormation::Stack
         Properties:

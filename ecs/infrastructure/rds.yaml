@@ -1,0 +1,88 @@
+Description: >
+    This template deploys the RDS MySQL instance for TeamCity server.
+
+Parameters:
+
+    EnvironmentName:
+        Description: An environment name that will be prefixed to resource names
+        Type: String
+
+    InstanceType:
+        Description: Which instance type should we use to run the RDS?
+        Type: String
+        Default: db.t2.small
+
+    SecurityGroup:
+        Description: Select the Security Group of the ECS cluster hosts
+        Type: AWS::EC2::SecurityGroup::Id
+
+    PrivateSubnet1:
+        Description: Select the VPC Private Subnet 1
+        Type: AWS::EC2::Subnet::Id
+
+    PrivateSubnet2:
+        Description: Select the VPC Private Subnet 2
+        Type: AWS::EC2::Subnet::Id
+
+    DBUser:
+        NoEcho: 'true'
+        Description: The database admin account username
+        Type: String
+        MinLength: '1'
+        MaxLength: '16'
+        AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+        ConstraintDescription: must begin with a letter and contain only alphanumeric
+          characters.
+
+    DBPassword:
+        NoEcho: 'true'
+        Description: The database admin account password
+        Type: String
+        MinLength: '8'
+        MaxLength: '41'
+        AllowedPattern: '[a-zA-Z0-9]*'
+        ConstraintDescription: must contain only alphanumeric characters.
+
+Resources:
+
+    RDS:
+        Type: AWS::RDS::DBInstance
+        Properties:
+            DBName: !Join ['', ['teamcity', !Ref EnvironmentName, 'db']]
+            DBInstanceIdentifier: !Sub TeamCity-${EnvironmentName}
+            AllocatedStorage: '5'
+            DBInstanceClass: !Ref 'InstanceType'
+            Engine: MySQL
+            EngineVersion: 5.5.54
+            MasterUsername: !Ref 'DBUser'
+            MasterUserPassword: !Ref 'DBPassword'
+            DBParameterGroupName: !Ref 'RDSParamGroup'
+            DBSubnetGroupName: !Ref 'RDSSubnetGroup'
+            VPCSecurityGroups:
+              - !Ref SecurityGroup
+
+    RDSParamGroup:
+        Type: AWS::RDS::DBParameterGroup
+        Properties:
+            Family: MySQL5.5
+            Description: !Sub TeamCity ${EnvironmentName} DB
+            Parameters:
+                long_query_time: "5"
+                slow_query_log: "1"
+                innodb_flush_log_at_trx_commit: "2"
+                character_set_server: "utf8"
+
+    RDSSubnetGroup:
+        Type: "AWS::RDS::DBSubnetGroup"
+        Properties:
+            DBSubnetGroupDescription: !Sub TeamCity ${EnvironmentName} DB
+            SubnetIds:
+              - !Ref 'PrivateSubnet1'
+              - !Ref 'PrivateSubnet2'
+
+
+Outputs:
+  JDBCConnectionString:
+    Description: JDBC connection string for the database
+    Value: !Join ['', ['jdbc:mysql://', !GetAtt [RDS, Endpoint.Address], ':', !GetAtt [
+          RDS, Endpoint.Port], /, !Join ['', ['teamcity', !Ref EnvironmentName, 'db']] ]]
