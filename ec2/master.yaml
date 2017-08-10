@@ -1,0 +1,105 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+    This template deploys a CoreOS EC2 instance with TeamCity server from DockerHub on board.
+
+    Last Modified: 10 August 2017
+
+Parameters:
+    EnvironmentName:
+        Description: An environment name that will be prefixed to resource names
+        Type: String
+
+    KeyName:
+        Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
+        Type: AWS::EC2::KeyPair::KeyName
+
+    InstanceType:
+        Description: Which instance type should we use for EC2 instance?
+        Type: String
+        Default: c4.large
+
+    AllowSSHFrom:
+      Description: The net block (CIDR) that SSH is available to.
+      Default: 0.0.0.0/0
+      Type: String
+
+Mappings:
+
+    # The current AMIs for stable Container Linux channel and EC2 regions are listed below:
+    #
+    # You can find the latest available on this page of CoreOS Container Linux documentation:
+    # https://coreos.com/os/docs/latest/booting-on-ec2.html
+    # (note the AMI identifier is region specific)
+
+    AWSRegionToAMI:
+        eu-central-1:
+            AMI: ami-9501c8fa
+        ap-northeast-1:
+            AMI: ami-885f19ef
+        us-gov-west-1:
+            AMI: ami-12c67c73
+        ap-northeast-2:
+            AMI: ami-d65889b8
+        ca-central-1:
+            AMI: ami-c8c67bac
+        ap-south-1:
+            AMI: ami-7e641511
+        sa-east-1:
+            AMI: ami-3e5d3952
+        ap-southeast-2:
+            AMI: ami-d92422ba
+        ap-southeast-1:
+            AMI: ami-14cc7877
+        us-east-1:
+            AMI: ami-fd6c94eb
+        us-east-2:
+            AMI: ami-72032617
+        us-west-2:
+            AMI: ami-4c49f22c
+        us-west-1:
+            AMI: ami-b6bae7d6
+        eu-west-1:
+            AMI: ami-ac8fd4ca
+        eu-west-2:
+            AMI: ami-054c5961
+
+Resources:
+    EC2Instance:
+        Type: AWS::EC2::Instance
+        Properties:
+            ImageId: !FindInMap [ AWSRegionToAMI, !Ref 'AWS::Region' , "AMI" ]
+            KeyName: !Ref 'KeyName'
+            InstanceType: !Ref InstanceType
+            SecurityGroups:
+            - !Ref EC2SecurityGroup
+            BlockDeviceMappings:
+            - DeviceName: /dev/xvda
+              Ebs:
+                VolumeSize: 10
+                VolumeType: gp2
+            - DeviceName: /dev/xvdg
+              Ebs:
+                VolumeSize: 10
+                VolumeType: gp2
+                DeleteOnTermination: false
+            Tags:
+                - Key: Name
+                  Value: !Sub TeamCity ${EnvironmentName} Server
+            UserData:
+                Fn::Base64: !Sub |
+                          {"ignition":{"version":"2.0.0","config":{}},"storage":{"files":[{"filesystem":"root","path":"/etc/coreos/update.conf","contents":{"source":"data:,%0AREBOOT_STRATEGY%3D%22off%22","verification":{}},"mode":420,"user":{},"group":{}}]},"systemd":{"units":[{"name":"format-mnt-data.service","enable":true,"contents":"[Unit]\nBefore=teamcity-server.service mnt-data.mount\nConditionPathExists=!/mnt/data\n[Service]\nType=oneshot\nExecStart=/usr/sbin/pvcreate /dev/sdg\nExecStart=/usr/sbin/vgcreate app /dev/sdg\nExecStart=/usr/sbin/lvcreate -l 100%FREE -n data app\n[Install]\nWantedBy=multi-user.target\n"},{"name":"mnt-data.mount","enable":true,"contents":"[Unit]\nBefore=teamcity-server.service\nAfter=format-mnt-data.service\nRequires=format-mnt-data.service\nConditionVirtualization=!container\nConflicts=umount.target\n[Mount]\nWhat=/dev/mapper/app-data\nWhere=/mnt/data\nType=ext4\nOptions=\n[Install]\nRequiredBy=teamcity-server.service\n"},{"name":"teamcity-server.service","enable":true,"contents":"[Unit]\nDescription=TeamCity Server\nAfter=docker.service mnt-data.mount\nRequires=docker.service mnt-data.mount\n[Service]\nTimeoutStartSec=1200s\nExecStart=/usr/bin/docker run \\\n    -v /mnt/data/teamcity:/data/teamcity_server/datadir \\\n    -v /mnt/data/logs/teamcity:/opt/teamcity/logs \\\n    -p 80:8080 \\\n    --name teamcity-server \\\n    jetbrains/teamcity-server:latest\nExecStop=/usr/bin/docker exec teamcity-server-blue /opt/teamcity/bin/teamcity-server.sh stop 60\nExecStopPost=-/usr/bin/docker stop teamcity-server-blue\nExecStopPost=-/usr/bin/docker rm teamcity-server-blue\nRestart=always\n[Install]\nWantedBy=multi-user.target"}]},"networkd":{},"passwd":{}}
+
+    EC2SecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: !Sub TeamCity ${EnvironmentName} Server
+        SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: !Ref AllowSSHFrom
+

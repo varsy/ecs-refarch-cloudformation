@@ -1,0 +1,55 @@
+#cloud-config
+locksmith:
+  reboot_strategy: off
+systemd:
+  units:
+    - name: format-mnt-data.service
+      enable: true
+      contents: |
+        [Unit]
+        Before=teamcity-server.service mnt-data.mount
+        ConditionPathExists=!/mnt/data
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/sbin/pvcreate /dev/xvdg
+        ExecStart=/usr/sbin/vgcreate app /dev/xvdg
+        ExecStart=/usr/sbin/lvcreate -l 100%FREE -n data app
+        [Install]
+        WantedBy=multi-user.target
+    - name: mnt-data.mount
+      enable: true
+      contents: |
+        [Unit]
+        Before=teamcity-server.service
+        After=format-mnt-data.service
+        Requires=format-mnt-data.service
+        ConditionVirtualization=!container
+        Conflicts=umount.target
+        [Mount]
+        What=/dev/mapper/app-data
+        Where=/mnt/data
+        Type=ext4
+        Options=
+        [Install]
+        RequiredBy=teamcity-server.service
+    - name: teamcity-server.service
+      enable: true
+      contents: |
+        [Unit]
+        Description=TeamCity Server
+        After=docker.service mnt-data.mount
+        Requires=docker.service mnt-data.mount
+        [Service]
+        TimeoutStartSec=1200s
+        ExecStart=/usr/bin/docker run \
+            -v /mnt/data/teamcity:/data/teamcity_server/datadir \
+            -v /mnt/data/logs/teamcity:/opt/teamcity/logs \
+            -p 80:8111 \
+            --name teamcity-server \
+            jetbrains/teamcity-server:latest
+        ExecStop=/usr/bin/docker exec teamcity-server-blue /opt/teamcity/bin/teamcity-server.sh stop 60
+        ExecStopPost=-/usr/bin/docker stop teamcity-server-blue
+        ExecStopPost=-/usr/bin/docker rm teamcity-server-blue
+        Restart=always
+        [Install]
+        WantedBy=multi-user.target

@@ -52,3 +52,10 @@ resource "aws_s3_bucket_object" "infra-teamcity-server" {
   source = "../ecs/teamcity/server.yaml"
   etag = "${md5(file("../ecs/teamcity/server.yaml"))}"
 }
+
+resource "aws_s3_bucket_object" "ec2-master" {
+  bucket = "${aws_s3_bucket.cloudformation.bucket}"
+  key = "ec2/master.yaml"
+  source = "../ec2/master.yaml"
+  etag = "${md5(file("../ec2/master.yaml"))}"
+}
