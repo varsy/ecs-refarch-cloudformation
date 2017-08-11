@@ -8,12 +8,13 @@ systemd:
       contents: |
         [Unit]
         Before=teamcity-server.service mnt-data.mount
-        ConditionPathExists=!/mnt/data
+        ConditionPathExists=!/dev/mapper/app-data
         [Service]
         Type=oneshot
         ExecStart=/usr/sbin/pvcreate /dev/xvdg
         ExecStart=/usr/sbin/vgcreate app /dev/xvdg
         ExecStart=/usr/sbin/lvcreate -l 100%FREE -n data app
+        ExecStart=/usr/sbin/mkfs.ext4 /dev/mapper/app-data
         [Install]
         WantedBy=multi-user.target
     - name: mnt-data.mount
@@ -47,7 +48,7 @@ systemd:
             -p 80:8111 \
             --name teamcity-server \
             jetbrains/teamcity-server:latest
-        ExecStop=/usr/bin/docker exec teamcity-server-blue /opt/teamcity/bin/teamcity-server.sh stop 60
+        ExecStop=-/usr/bin/docker exec teamcity-server-blue /opt/teamcity/bin/teamcity-server.sh stop 60
         ExecStopPost=-/usr/bin/docker stop teamcity-server-blue
         ExecStopPost=-/usr/bin/docker rm teamcity-server-blue
         Restart=always
