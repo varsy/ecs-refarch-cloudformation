@@ -11,10 +11,11 @@ systemd:
         ConditionPathExists=!/dev/mapper/app-data
         [Service]
         Type=oneshot
-        ExecStart=/usr/sbin/pvcreate /dev/xvdg
-        ExecStart=/usr/sbin/vgcreate app /dev/xvdg
-        ExecStart=/usr/sbin/lvcreate -l 100%FREE -n data app
-        ExecStart=/usr/sbin/mkfs.ext4 /dev/mapper/app-data
+        ExecStart=/bin/bash -c \
+        '/usr/sbin/pvcreate /dev/xvdg && \
+        /usr/sbin/vgcreate app /dev/xvdg && \
+        /usr/sbin/lvcreate -l 100%FREE -n data app && \
+        /usr/sbin/mkfs.ext4 /dev/mapper/app-data'
         [Install]
         WantedBy=multi-user.target
     - name: mnt-data.mount
@@ -33,6 +34,20 @@ systemd:
         Options=
         [Install]
         RequiredBy=teamcity-server.service
+    - name: get-mysql-connector.service
+      enable: true
+      contents: |
+        [Unit]
+        Before=teamcity-server.service
+        After=mnt-data.mount
+        Requires=mnt-data.mount
+        ConditionPathExists=!/mnt/data/teamcity/lib/jdbc/mysql-connector-java-bin.jar
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/bin/mkdir -p /mnt/data/teamcity/lib/jdbc
+        ExecStart=/usr/bin/wget -O /mnt/data/teamcity/lib/jdbc/mysql-connector-java-bin.jar http://central.maven.org/maven2/mysql/mysql-connector-java/5.1.43/mysql-connector-java-5.1.43.jar
+        [Install]
+        WantedBy=multi-user.target
     - name: teamcity-server.service
       enable: true
       contents: |
@@ -43,14 +58,14 @@ systemd:
         [Service]
         TimeoutStartSec=1200s
         ExecStart=/usr/bin/docker run \
-            -v /mnt/data/teamcity:/data/teamcity_server/datadir \
-            -v /mnt/data/logs/teamcity:/opt/teamcity/logs \
-            -p 80:8111 \
-            --name teamcity-server \
-            jetbrains/teamcity-server:latest
-        ExecStop=-/usr/bin/docker exec teamcity-server-blue /opt/teamcity/bin/teamcity-server.sh stop 60
-        ExecStopPost=-/usr/bin/docker stop teamcity-server-blue
-        ExecStopPost=-/usr/bin/docker rm teamcity-server-blue
+        -v /mnt/data/teamcity:/data/teamcity_server/datadir \
+        -v /mnt/data/logs/teamcity:/opt/teamcity/logs \
+        -p 80:8111 \
+        --name teamcity-server \
+        jetbrains/teamcity-server:latest
+        ExecStop=-/usr/bin/docker exec teamcity-server /opt/teamcity/bin/teamcity-server.sh stop 60
+        ExecStopPost=-/usr/bin/docker stop teamcity-server
+        ExecStopPost=-/usr/bin/docker rm teamcity-server
         Restart=always
         [Install]
         WantedBy=multi-user.target
