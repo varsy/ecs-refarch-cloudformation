@@ -48,13 +48,29 @@ systemd:
         ExecStart=/usr/bin/wget -O /mnt/data/teamcity/lib/jdbc/mysql-connector-java-bin.jar http://central.maven.org/maven2/mysql/mysql-connector-java/5.1.43/mysql-connector-java-5.1.43.jar
         [Install]
         WantedBy=multi-user.target
+    - name: prepare-db-properties.service
+      enable: true
+      contents: |
+        [Unit]
+        Before=teamcity-server.service
+        After=mnt-data.mount
+        Requires=mnt-data.mount
+        ConditionPathExists=!/mnt/data/teamcity/config/database.properties
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/bin/mkdir -p /mnt/data/teamcity/config
+        ExecStart=/bin/bash -c 'echo connectionProperties.user=teamcity > /mnt/data/teamcity/config/database.properties'
+        ExecStart=/bin/bash -c 'echo connectionProperties.password=t34mc1ty >> /mnt/data/teamcity/config/database.properties'
+        ExecStart=/bin/bash -c 'echo connectionUrl=jdbc\:mysql\://${RDSAddress}/teamcity${AWS::StackName}db >> /mnt/data/teamcity/config/database.properties'
+        [Install]
+        WantedBy=multi-user.target
     - name: teamcity-server.service
       enable: true
       contents: |
         [Unit]
         Description=TeamCity Server
-        After=docker.service mnt-data.mount
-        Requires=docker.service mnt-data.mount
+        After=docker.service mnt-data.mount get-mysql-connector.service prepare-db-properties.service
+        Requires=docker.service mnt-data.mount get-mysql-connector.service prepare-db-properties.service
         [Service]
         TimeoutStartSec=1200s
         ExecStart=/usr/bin/docker run \

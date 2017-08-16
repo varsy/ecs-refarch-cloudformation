@@ -1,8 +1,8 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
-    This template deploys a CoreOS EC2 instance with TeamCity server from DockerHub on board.
+    This template deploys a CoreOS EC2 instance with the latest official TeamCity server from DockerHub on board.
 
-    Last Modified: 15 August 2017
+    Last Modified: 16 August 2017
 
 Parameters:
     KeyName:
@@ -10,38 +10,14 @@ Parameters:
         Type: AWS::EC2::KeyPair::KeyName
 
     InstanceType:
-        Description: Which instance type should we use for EC2 instance?
+        Description: Which instance type should we use for the EC2 instance?
         Type: String
         Default: c4.large
 
-    AllowSSHFrom:
-        Description: The net block (CIDR) that SSH is available to.
-        Default: 0.0.0.0/0
-        Type: String
-
     DBInstanceType:
-        Description: Which instance type should we use to run the RDS?
+        Description: Which instance type should we use for the RDS instance?
         Type: String
         Default: db.t2.small
-
-    DBUser:
-        Description: The database admin account username
-        Type: String
-        MinLength: '1'
-        MaxLength: '16'
-        AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
-        Default: 'TeamCity'
-        ConstraintDescription: must begin with a letter and contain only alphanumeric
-          characters.
-
-    DBPassword:
-        NoEcho: 'true'
-        Description: The database admin account password (8 min, 41 max)
-        Type: String
-        MinLength: '8'
-        MaxLength: '41'
-        AllowedPattern: '[a-zA-Z0-9]*'
-        ConstraintDescription: must contain only alphanumeric characters (8 min, 41 max).
 
 Mappings:
 
@@ -106,8 +82,11 @@ Resources:
                 - Key: Name
                   Value: !Sub TeamCity ${AWS::StackName} Server
             UserData:
-                Fn::Base64: !Sub |
-                    {"ignition":{"version":"2.0.0","config":{}},"storage":{"files":[{"filesystem":"root","path":"/etc/coreos/update.conf","contents":{"source":"data:,%0AREBOOT_STRATEGY%3D%22off%22","verification":{}},"mode":420,"user":{},"group":{}}]},"systemd":{"units":[{"name":"format-mnt-data.service","enable":true,"contents":"[Unit]\nBefore=teamcity-server.service mnt-data.mount\nConditionPathExists=!/dev/mapper/app-data\n[Service]\nType=oneshot\nExecStart=/bin/bash -c \\\n'/usr/sbin/pvcreate /dev/xvdg \u0026\u0026 \\\n/usr/sbin/vgcreate app /dev/xvdg \u0026\u0026 \\\n/usr/sbin/lvcreate -l 100%FREE -n data app \u0026\u0026 \\\n/usr/sbin/mkfs.ext4 /dev/mapper/app-data'\n[Install]\nWantedBy=multi-user.target\n"},{"name":"mnt-data.mount","enable":true,"contents":"[Unit]\nBefore=teamcity-server.service\nAfter=format-mnt-data.service\nRequires=format-mnt-data.service\nConditionVirtualization=!container\nConflicts=umount.target\n[Mount]\nWhat=/dev/mapper/app-data\nWhere=/mnt/data\nType=ext4\nOptions=\n[Install]\nRequiredBy=teamcity-server.service\n"},{"name":"get-mysql-connector.service","enable":true,"contents":"[Unit]\nBefore=teamcity-server.service\nAfter=mnt-data.mount\nRequires=mnt-data.mount\nConditionPathExists=!/mnt/data/teamcity/lib/jdbc/mysql-connector-java-bin.jar\n[Service]\nType=oneshot\nExecStart=/usr/bin/mkdir -p /mnt/data/teamcity/lib/jdbc\nExecStart=/usr/bin/wget -O /mnt/data/teamcity/lib/jdbc/mysql-connector-java-bin.jar http://central.maven.org/maven2/mysql/mysql-connector-java/5.1.43/mysql-connector-java-5.1.43.jar\n[Install]\nWantedBy=multi-user.target\n"},{"name":"teamcity-server.service","enable":true,"contents":"[Unit]\nDescription=TeamCity Server\nAfter=docker.service mnt-data.mount\nRequires=docker.service mnt-data.mount\n[Service]\nTimeoutStartSec=1200s\nExecStart=/usr/bin/docker run \\\n-v /mnt/data/teamcity:/data/teamcity_server/datadir \\\n-v /mnt/data/logs/teamcity:/opt/teamcity/logs \\\n-p 80:8111 \\\n--name teamcity-server \\\njetbrains/teamcity-server:latest\nExecStop=-/usr/bin/docker exec teamcity-server /opt/teamcity/bin/teamcity-server.sh stop 60\nExecStopPost=-/usr/bin/docker stop teamcity-server\nExecStopPost=-/usr/bin/docker rm teamcity-server\nRestart=always\n[Install]\nWantedBy=multi-user.target"}]},"networkd":{},"passwd":{}}
+                Fn::Base64:
+                  !Sub
+                  - |
+                    {"ignition":{"version":"2.0.0","config":{}},"storage":{"files":[{"filesystem":"root","path":"/etc/coreos/update.conf","contents":{"source":"data:,%0AREBOOT_STRATEGY%3D%22off%22","verification":{}},"mode":420,"user":{},"group":{}}]},"systemd":{"units":[{"name":"format-mnt-data.service","enable":true,"contents":"[Unit]\nBefore=teamcity-server.service mnt-data.mount\nConditionPathExists=!/dev/mapper/app-data\n[Service]\nType=oneshot\nExecStart=/bin/bash -c \\\n'/usr/sbin/pvcreate /dev/xvdg \u0026\u0026 \\\n/usr/sbin/vgcreate app /dev/xvdg \u0026\u0026 \\\n/usr/sbin/lvcreate -l 100%FREE -n data app \u0026\u0026 \\\n/usr/sbin/mkfs.ext4 /dev/mapper/app-data'\n[Install]\nWantedBy=multi-user.target\n"},{"name":"mnt-data.mount","enable":true,"contents":"[Unit]\nBefore=teamcity-server.service\nAfter=format-mnt-data.service\nRequires=format-mnt-data.service\nConditionVirtualization=!container\nConflicts=umount.target\n[Mount]\nWhat=/dev/mapper/app-data\nWhere=/mnt/data\nType=ext4\nOptions=\n[Install]\nRequiredBy=teamcity-server.service\n"},{"name":"get-mysql-connector.service","enable":true,"contents":"[Unit]\nBefore=teamcity-server.service\nAfter=mnt-data.mount\nRequires=mnt-data.mount\nConditionPathExists=!/mnt/data/teamcity/lib/jdbc/mysql-connector-java-bin.jar\n[Service]\nType=oneshot\nExecStart=/usr/bin/mkdir -p /mnt/data/teamcity/lib/jdbc\nExecStart=/usr/bin/wget -O /mnt/data/teamcity/lib/jdbc/mysql-connector-java-bin.jar http://central.maven.org/maven2/mysql/mysql-connector-java/5.1.43/mysql-connector-java-5.1.43.jar\n[Install]\nWantedBy=multi-user.target\n"},{"name":"prepare-db-properties.service","enable":true,"contents":"[Unit]\nBefore=teamcity-server.service\nAfter=mnt-data.mount\nRequires=mnt-data.mount\nConditionPathExists=!/mnt/data/teamcity/config/database.properties\n[Service]\nType=oneshot\nExecStart=/usr/bin/mkdir -p /mnt/data/teamcity/config\nExecStart=/bin/bash -c 'echo connectionProperties.user=teamcity \u003e /mnt/data/teamcity/config/database.properties'\nExecStart=/bin/bash -c 'echo connectionProperties.password=t34mc1ty \u003e\u003e /mnt/data/teamcity/config/database.properties'\nExecStart=/bin/bash -c 'echo connectionUrl=jdbc\\:mysql\\://${RDSAddress}/teamcity${AWS::StackName}db \u003e\u003e /mnt/data/teamcity/config/database.properties'\n[Install]\nWantedBy=multi-user.target\n"},{"name":"teamcity-server.service","enable":true,"contents":"[Unit]\nDescription=TeamCity Server\nAfter=docker.service mnt-data.mount get-mysql-connector.service prepare-db-properties.service\nRequires=docker.service mnt-data.mount get-mysql-connector.service prepare-db-properties.service\n[Service]\nTimeoutStartSec=1200s\nExecStart=/usr/bin/docker run \\\n-v /mnt/data/teamcity:/data/teamcity_server/datadir \\\n-v /mnt/data/logs/teamcity:/opt/teamcity/logs \\\n-p 80:8111 \\\n--name teamcity-server \\\njetbrains/teamcity-server:latest\nExecStop=-/usr/bin/docker exec teamcity-server /opt/teamcity/bin/teamcity-server.sh stop 60\nExecStopPost=-/usr/bin/docker stop teamcity-server\nExecStopPost=-/usr/bin/docker rm teamcity-server\nRestart=always\n[Install]\nWantedBy=multi-user.target"}]},"networkd":{},"passwd":{}}
+                  - { RDSAddress: !GetAtt [RDSDB, Endpoint.Address] }
 
     EC2SecurityGroup:
         Type: AWS::EC2::SecurityGroup
@@ -121,7 +100,7 @@ Resources:
               - IpProtocol: tcp
                 FromPort: '22'
                 ToPort: '22'
-                CidrIp: !Ref AllowSSHFrom
+                CidrIp: 0.0.0.0/0
 
     RDSDB:
         Type: AWS::RDS::DBInstance
@@ -134,9 +113,10 @@ Resources:
             - Ref: RDSSecurityGroup
             Engine: MySQL
             EngineVersion: 5.5.54
-            MasterUsername: !Ref 'DBUser'
-            MasterUserPassword: !Ref 'DBPassword'
+            MasterUsername: teamcity
+            MasterUserPassword: t34mc1ty
             DBParameterGroupName: !Ref 'RDSParamGroup'
+            PubliclyAccessible: false
         DeletionPolicy: Snapshot
 
     RDSSecurityGroup:
@@ -144,7 +124,7 @@ Resources:
         Properties:
             GroupDescription: !Sub TeamCity ${AWS::StackName} Server
             DBSecurityGroupIngress:
-                CIDRIP: !Join ["", [!GetAtt EC2Instance.PrivateIp, "/32"]]
+                CIDRIP: 0.0.0.0/0
 
     RDSParamGroup:
         Type: AWS::RDS::DBParameterGroup
@@ -163,15 +143,6 @@ Resources:
             InstanceId: !Ref EC2Instance
 
 Outputs:
-    DatabaseHost:
-        Description: RDS host address
-        Value: !Join ['', [!GetAtt [RDSDB, Endpoint.Address], ':', !GetAtt [
-                             RDSDB, Endpoint.Port]] ]
-
-    DatabaseName:
-        Description: RDS database name
-        Value: !Join ['', ['teamcity', !Ref 'AWS::StackName', 'db']]
-
     TeamCityServerUrl:
         Description: TeamCity Server endpoint
         Value: !Join ["", [ "http://", !Ref EIP, "/" ]]
