@@ -2,7 +2,7 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: >
     This template deploys a CoreOS EC2 instance with the latest official TeamCity server from DockerHub on board.
 
-    Last Modified: 16 August 2017
+    Last Modified: 07 Sept 2017
 
 Parameters:
     KeyName:
@@ -12,7 +12,7 @@ Parameters:
     InstanceType:
         Description: Which instance type should we use for the EC2 instance?
         Type: String
-        Default: c4.large
+        Default: t2.medium
 
     DBInstanceType:
         Description: Which instance type should we use for the RDS instance?
@@ -66,8 +66,9 @@ Resources:
             ImageId: !FindInMap [ AWSRegionToAMI, !Ref 'AWS::Region' , "AMI" ]
             KeyName: !Ref 'KeyName'
             InstanceType: !Ref InstanceType
-            SecurityGroups:
+            SecurityGroupIds:
             - !Ref EC2SecurityGroup
+            SubnetId: !Ref PublicSubnet1
             BlockDeviceMappings:
             - DeviceName: /dev/xvda
               Ebs:
@@ -91,6 +92,7 @@ Resources:
     EC2SecurityGroup:
         Type: AWS::EC2::SecurityGroup
         Properties:
+            VpcId: !Ref VPC
             GroupDescription: !Sub TeamCity ${AWS::StackName} Server
             SecurityGroupIngress:
               - IpProtocol: tcp
@@ -109,7 +111,8 @@ Resources:
             DBInstanceClass: !Ref 'DBInstanceType'
             DBInstanceIdentifier: !Sub TeamCity-${AWS::StackName}
             DBName: !Join ['', ['teamcity', !Ref 'AWS::StackName', 'db']]
-            DBSecurityGroups:
+            DBSubnetGroupName: !Ref 'RDSSubnetGroup'
+            VPCSecurityGroups:
             - Ref: RDSSecurityGroup
             Engine: MySQL
             EngineVersion: 5.5.54
@@ -120,11 +123,13 @@ Resources:
         DeletionPolicy: Snapshot
 
     RDSSecurityGroup:
-        Type: AWS::RDS::DBSecurityGroup
+        Type: AWS::EC2::SecurityGroup
         Properties:
-            GroupDescription: !Sub TeamCity ${AWS::StackName} Server
-            DBSecurityGroupIngress:
-                CIDRIP: 0.0.0.0/0
+            VpcId: !Ref VPC
+            GroupDescription: !Sub TeamCity ${AWS::StackName} Database
+            SecurityGroupIngress:
+              - IpProtocol: -1
+                CidrIp: 10.0.0.0/16
 
     RDSParamGroup:
         Type: AWS::RDS::DBParameterGroup
@@ -137,10 +142,156 @@ Resources:
                 innodb_flush_log_at_trx_commit: "2"
                 character_set_server: "utf8"
 
+    RDSSubnetGroup:
+        Type: "AWS::RDS::DBSubnetGroup"
+        Properties:
+            DBSubnetGroupDescription: !Sub TeamCity ${AWS::StackName} DB
+            SubnetIds:
+              - !Ref 'PrivateSubnet1'
+              - !Ref 'PrivateSubnet2'
+
+
     EIP:
         Type: AWS::EC2::EIP
         Properties:
             InstanceId: !Ref EC2Instance
+
+
+    VPC:
+        Type: AWS::EC2::VPC
+        Properties:
+            CidrBlock: 10.0.0.0/16
+            Tags:
+                - Key: Name
+                  Value: !Sub TeamCity-${AWS::StackName}
+
+    InternetGateway:
+        Type: AWS::EC2::InternetGateway
+        Properties:
+            Tags:
+                - Key: Name
+                  Value: !Sub TeamCity-${AWS::StackName}
+
+    InternetGatewayAttachment:
+        Type: AWS::EC2::VPCGatewayAttachment
+        Properties:
+            InternetGatewayId: !Ref InternetGateway
+            VpcId: !Ref VPC
+
+    PublicSubnet1:
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId: !Ref VPC
+            AvailabilityZone: !Select [ 0, !GetAZs ]
+            CidrBlock: 10.0.0.0/24
+            MapPublicIpOnLaunch: true
+            Tags:
+                - Key: Name
+                  Value: !Sub TeamCity ${AWS::StackName} Public Subnet (AZ1)
+
+    PublicSubnet2:
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId: !Ref VPC
+            AvailabilityZone: !Select [ 1, !GetAZs ]
+            CidrBlock: 10.0.1.0/24
+            MapPublicIpOnLaunch: true
+            Tags:
+                - Key: Name
+                  Value: !Sub TeamCity ${AWS::StackName} Public Subnet (AZ2)
+
+    PrivateSubnet1:
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId: !Ref VPC
+            AvailabilityZone: !Select [ 0, !GetAZs ]
+            CidrBlock: 10.0.2.0/24
+            MapPublicIpOnLaunch: false
+            Tags:
+                - Key: Name
+                  Value: !Sub TeamCity ${AWS::StackName} Private Subnet (AZ1)
+
+    PrivateSubnet2:
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId: !Ref VPC
+            AvailabilityZone: !Select [ 1, !GetAZs ]
+            CidrBlock: 10.0.3.0/24
+            MapPublicIpOnLaunch: false
+            Tags:
+                - Key: Name
+                  Value: !Sub TeamCity ${AWS::StackName} Private Subnet (AZ2)
+
+    PublicRouteTable:
+        Type: AWS::EC2::RouteTable
+        Properties:
+            VpcId: !Ref VPC
+            Tags:
+                - Key: Name
+                  Value: !Sub TeamCity ${AWS::StackName} Public Routes
+
+    DefaultPublicRoute:
+        Type: AWS::EC2::Route
+        DependsOn: InternetGatewayAttachment
+        Properties:
+            RouteTableId: !Ref PublicRouteTable
+            DestinationCidrBlock: 0.0.0.0/0
+            GatewayId: !Ref InternetGateway
+
+    PublicSubnet1RouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId: !Ref PublicRouteTable
+            SubnetId: !Ref PublicSubnet1
+
+    PublicSubnet2RouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId: !Ref PublicRouteTable
+            SubnetId: !Ref PublicSubnet2
+
+
+    PrivateRouteTable1:
+        Type: AWS::EC2::RouteTable
+        Properties:
+            VpcId: !Ref VPC
+            Tags:
+                - Key: Name
+                  Value: !Sub TeamCity ${AWS::StackName} Private Routes (AZ1)
+
+    DefaultPrivateRoute1:
+        Type: AWS::EC2::Route
+        Properties:
+            RouteTableId: !Ref PrivateRouteTable1
+            DestinationCidrBlock: 0.0.0.0/0
+            GatewayId: !Ref InternetGateway
+
+    PrivateSubnet1RouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId: !Ref PrivateRouteTable1
+            SubnetId: !Ref PrivateSubnet1
+
+    PrivateRouteTable2:
+        Type: AWS::EC2::RouteTable
+        Properties:
+            VpcId: !Ref VPC
+            Tags:
+                - Key: Name
+                  Value: !Sub TeamCity ${AWS::StackName} Private Routes (AZ2)
+
+    DefaultPrivateRoute2:
+        Type: AWS::EC2::Route
+        Properties:
+            RouteTableId: !Ref PrivateRouteTable2
+            DestinationCidrBlock: 0.0.0.0/0
+            GatewayId: !Ref InternetGateway
+
+    PrivateSubnet2RouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId: !Ref PrivateRouteTable2
+            SubnetId: !Ref PrivateSubnet2
 
 Outputs:
     TeamCityServerUrl:
