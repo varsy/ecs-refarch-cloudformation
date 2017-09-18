@@ -1,0 +1,23 @@
+#cloud-config
+locksmith:
+  reboot_strategy: off
+systemd:
+  units:
+    - name: teamcity-agent.service
+      enable: true
+      contents: |
+        [Unit]
+        Description=TeamCity Agent
+        After=docker.service
+        Requires=docker.service
+        [Service]
+        TimeoutStartSec=1200s
+        ExecStart=/usr/bin/docker run \
+        --name teamcity-agent \
+        -e SERVER_URL=${TCSERVERADDRESS} \
+        jetbrains/teamcity-agent:latest
+        ExecStop=-/usr/bin/docker stop teamcity-agent
+        ExecStopPost=-/usr/bin/docker rm teamcity-agent
+        Restart=always
+        [Install]
+        WantedBy=multi-user.target
