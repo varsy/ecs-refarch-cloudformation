@@ -1,26 +1,32 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
-    This template deploys a CoreOS EC2 instance with the latest official TeamCity server from DockerHub on board.
+    This template deploys a CoreOS EC2 instance with the latest official TeamCity server from DockerHub on board,
+    one RDS database and a AutoScalingGroup for TeamCity Build Agents.
 
-    Last Modified: 18 Sept 2017
+    Last Modified: 19 Sept 2017
 
 Parameters:
     KeyName:
         Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
         Type: AWS::EC2::KeyPair::KeyName
 
-    InstanceType:
-        Description: Which instance type should we use for the EC2 instance?
+    ServerInstanceType:
+        Description: Which instance type should we use for the Server EC2 instance?
         Type: String
         Default: t2.medium
+
+    BuildAgentInstanceType:
+        Description: Which instance type should we use for the Agent EC2 instance?
+        Type: String
+        Default: t2.small
 
     DBInstanceType:
         Description: Which instance type should we use for the RDS instance?
         Type: String
         Default: db.t2.small
 
-    AgentsCount:
-        Description: How many ECS hosts do you want to initially deploy?
+    BuildAgentsCount:
+        Description: How many Build Agent EC2 instances do you want to run?
         Type: Number
         Default: 3
 
@@ -71,7 +77,7 @@ Resources:
         Properties:
             ImageId: !FindInMap [ AWSRegionToAMI, !Ref 'AWS::Region' , "AMI" ]
             KeyName: !Ref 'KeyName'
-            InstanceType: !Ref InstanceType
+            InstanceType: !Ref ServerInstanceType
             SecurityGroupIds:
             - !Ref EC2SecurityGroup
             SubnetId: !Ref PublicSubnet1
@@ -101,7 +107,7 @@ Resources:
         Properties:
             ImageId:  !FindInMap [AWSRegionToAMI, !Ref "AWS::Region", "AMI"]
             KeyName: !Ref 'KeyName'
-            InstanceType: !Ref InstanceType
+            InstanceType: !Ref BuildAgentInstanceType
             SecurityGroups:
                 - !Ref EC2SecurityGroup
             UserData:
@@ -117,9 +123,9 @@ Resources:
             VPCZoneIdentifier:
               - !Ref PublicSubnet1
             LaunchConfigurationName: !Ref EC2AgentsLaunchConfiguration
-            MinSize: !Ref AgentsCount
-            MaxSize: !Ref AgentsCount
-            DesiredCapacity: !Ref AgentsCount
+            MinSize: !Ref BuildAgentsCount
+            MaxSize: !Ref BuildAgentsCount
+            DesiredCapacity: !Ref BuildAgentsCount
             Tags:
                 - Key: Name
                   Value: !Sub TeamCity ${AWS::StackName} Agent
