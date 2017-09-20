@@ -58,11 +58,5 @@ resource "aws_s3_bucket_object" "ec2-master" {
   key = "ec2/master.yaml"
   source = "../ec2/master.yaml"
   etag = "${md5(file("../ec2/master.yaml"))}"
-}
-
-resource "aws_s3_bucket_object" "ec2-vpc" {
-  bucket = "${aws_s3_bucket.cloudformation.bucket}"
-  key = "ec2/vpc.yaml"
-  source = "../ec2/vpc.yaml"
-  etag = "${md5(file("../ec2/vpc.yaml"))}"
+  acl = "public-read"
 }

@@ -1,35 +1,72 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
     This template deploys a CoreOS EC2 instance with the latest official TeamCity server from DockerHub on board,
-    one RDS database and a AutoScalingGroup for TeamCity Build Agents.
+    one RDS database and an AutoScalingGroup for TeamCity Build Agents.
 
-    Last Modified: 19 Sept 2017
+    Last Modified: 20 Sept 2017
 
 Parameters:
     KeyName:
         Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
         Type: AWS::EC2::KeyPair::KeyName
+        AllowedPattern: ".+"
 
     ServerInstanceType:
-        Description: Which instance type should we use for the Server EC2 instance?
+        Description: Which instance type should we use for the TeamCity Server EC2 instance?
         Type: String
         Default: t2.medium
-
-    BuildAgentInstanceType:
-        Description: Which instance type should we use for the Agent EC2 instance?
-        Type: String
-        Default: t2.small
+        AllowedValues:
+          - t2.medium
+          - m1.small
+          - m1.large
+        # TODO: should we type all suitable instances here?
 
     DBInstanceType:
-        Description: Which instance type should we use for the RDS instance?
+        Description: Which instance type should we use for the RDS instance for TeamCity Database?
         Type: String
         Default: db.t2.small
+        # TODO: same thing here
+
+    BuildAgentInstanceType:
+        Description: Which instance type should we use for the TeamCity Build Agent EC2 instance?
+        Type: String
+        Default: t2.small
 
     BuildAgentsCount:
         Description: How many Build Agent EC2 instances do you want to run?
         Type: Number
         Default: 3
 
+Metadata:
+    AWS::CloudFormation::Interface:
+        ParameterGroups:
+          -
+            Label:
+              default: "TeamCity Server"
+            Parameters:
+              - ServerInstanceType
+              - KeyName
+          -
+            Label:
+              default: "TeamCity Database"
+            Parameters:
+              - DBInstanceType
+          - Label:
+              default: "TeamCity Build Agents"
+            Parameters:
+              - BuildAgentInstanceType
+              - BuildAgentsCount
+        ParameterLabels:
+          ServerInstanceType:
+            default: "EC2 Instance Type"
+          KeyName:
+            default: "EC2 KeyPair to access TeamCity Server & Agents"
+          DBInstanceType:
+            default: "RDS Database Instance Type"
+          BuildAgentInstanceType:
+            default: "EC2 Instance Type"
+          BuildAgentsCount:
+            default: "Number of Agents"
 
 Mappings:
 
@@ -98,7 +135,7 @@ Resources:
                 Fn::Base64:
                   !Sub
                   - |
-                    {"ignition":{"version":"2.0.0","config":{}},"storage":{"files":[{"filesystem":"root","path":"/etc/coreos/update.conf","contents":{"source":"data:,%0AREBOOT_STRATEGY%3D%22off%22","verification":{}},"mode":420,"user":{},"group":{}}]},"systemd":{"units":[{"name":"format-mnt-data.service","enable":true,"contents":"[Unit]\nBefore=teamcity-server.service mnt-data.mount\nConditionPathExists=!/dev/mapper/app-data\n[Service]\nType=oneshot\nExecStart=/bin/bash -c \\\n'/usr/sbin/pvcreate /dev/xvdg \u0026\u0026 \\\n/usr/sbin/vgcreate app /dev/xvdg \u0026\u0026 \\\n/usr/sbin/lvcreate -l 100%FREE -n data app \u0026\u0026 \\\n/usr/sbin/mkfs.ext4 /dev/mapper/app-data'\n[Install]\nWantedBy=multi-user.target\n"},{"name":"mnt-data.mount","enable":true,"contents":"[Unit]\nBefore=teamcity-server.service\nAfter=format-mnt-data.service\nRequires=format-mnt-data.service\nConditionVirtualization=!container\nConflicts=umount.target\n[Mount]\nWhat=/dev/mapper/app-data\nWhere=/mnt/data\nType=ext4\nOptions=\n[Install]\nRequiredBy=teamcity-server.service\n"},{"name":"get-mysql-connector.service","enable":true,"contents":"[Unit]\nBefore=teamcity-server.service\nAfter=mnt-data.mount\nRequires=mnt-data.mount\nConditionPathExists=!/mnt/data/teamcity/lib/jdbc/mysql-connector-java-bin.jar\n[Service]\nType=oneshot\nExecStart=/usr/bin/mkdir -p /mnt/data/teamcity/lib/jdbc\nExecStart=/usr/bin/wget -O /mnt/data/teamcity/lib/jdbc/mysql-connector-java-bin.jar http://central.maven.org/maven2/mysql/mysql-connector-java/5.1.43/mysql-connector-java-5.1.43.jar\n[Install]\nWantedBy=multi-user.target\n"},{"name":"prepare-db-properties.service","enable":true,"contents":"[Unit]\nBefore=teamcity-server.service\nAfter=mnt-data.mount\nRequires=mnt-data.mount\nConditionPathExists=!/mnt/data/teamcity/config/database.properties\n[Service]\nType=oneshot\nExecStart=/usr/bin/mkdir -p /mnt/data/teamcity/config\nExecStart=/bin/bash -c 'echo connectionProperties.user=teamcity \u003e /mnt/data/teamcity/config/database.properties'\nExecStart=/bin/bash -c 'echo connectionProperties.password=t34mc1ty \u003e\u003e /mnt/data/teamcity/config/database.properties'\nExecStart=/bin/bash -c 'echo connectionUrl=jdbc\\:mysql\\://${RDSAddress}/teamcity${AWS::StackName}db \u003e\u003e /mnt/data/teamcity/config/database.properties'\n[Install]\nWantedBy=multi-user.target\n"},{"name":"teamcity-server.service","enable":true,"contents":"[Unit]\nDescription=TeamCity Server\nAfter=docker.service mnt-data.mount get-mysql-connector.service prepare-db-properties.service\nRequires=docker.service mnt-data.mount get-mysql-connector.service prepare-db-properties.service\n[Service]\nTimeoutStartSec=1200s\nExecStart=/usr/bin/docker run \\\n-v /mnt/data/teamcity:/data/teamcity_server/datadir \\\n-v /mnt/data/logs/teamcity:/opt/teamcity/logs \\\n-p 80:8111 \\\n--name teamcity-server \\\njetbrains/teamcity-server:latest\nExecStop=-/usr/bin/docker exec teamcity-server /opt/teamcity/bin/teamcity-server.sh stop 60\nExecStopPost=-/usr/bin/docker stop teamcity-server\nExecStopPost=-/usr/bin/docker rm teamcity-server\nRestart=always\n[Install]\nWantedBy=multi-user.target"}]},"networkd":{},"passwd":{}}
+                    {"ignition":{"version":"2.0.0","config":{}},"storage":{"files":[{"filesystem":"root","path":"/etc/coreos/update.conf","contents":{"source":"data:,%0AREBOOT_STRATEGY%3D%22off%22","verification":{}},"mode":420,"user":{},"group":{}}]},"systemd":{"units":[{"name":"format-mnt-data.service","enable":true,"contents":"[Unit]\nBefore=teamcity-server.service mnt-data.mount\nConditionPathExists=!/dev/mapper/app-data\n[Service]\nType=oneshot\nExecStart=/bin/bash -c \\\n'/usr/sbin/pvcreate /dev/xvdg \u0026\u0026 \\\n/usr/sbin/vgcreate app /dev/xvdg \u0026\u0026 \\\n/usr/sbin/lvcreate -l 100%FREE -n data app \u0026\u0026 \\\n/usr/sbin/mkfs.ext4 /dev/mapper/app-data'\n[Install]\nWantedBy=multi-user.target\n"},{"name":"mnt-data.mount","enable":true,"contents":"[Unit]\nBefore=teamcity-server.service\nAfter=format-mnt-data.service\nRequires=format-mnt-data.service\nConditionVirtualization=!container\nConflicts=umount.target\n[Mount]\nWhat=/dev/mapper/app-data\nWhere=/mnt/data\nType=ext4\nOptions=\n[Install]\nRequiredBy=teamcity-server.service\n"},{"name":"get-mysql-connector.service","enable":true,"contents":"[Unit]\nBefore=teamcity-server.service\nAfter=mnt-data.mount\nRequires=mnt-data.mount\nConditionPathExists=!/mnt/data/teamcity/lib/jdbc/mysql-connector-java-bin.jar\n[Service]\nType=oneshot\nExecStart=/usr/bin/mkdir -p /mnt/data/teamcity/lib/jdbc\nExecStart=/usr/bin/wget -O /mnt/data/teamcity/lib/jdbc/mysql-connector-java-bin.jar http://central.maven.org/maven2/mysql/mysql-connector-java/5.1.43/mysql-connector-java-5.1.43.jar\n[Install]\nWantedBy=multi-user.target\n"},{"name":"prepare-db-properties.service","enable":true,"contents":"[Unit]\nBefore=teamcity-server.service\nAfter=mnt-data.mount\nRequires=mnt-data.mount\nConditionPathExists=!/mnt/data/teamcity/config/database.properties\n[Service]\nType=oneshot\nExecStart=/usr/bin/mkdir -p /mnt/data/teamcity/config\nExecStart=/bin/bash -c 'echo connectionProperties.user=teamcity \u003e /mnt/data/teamcity/config/database.properties'\nExecStart=/bin/bash -c 'echo connectionProperties.password=t34mc1ty \u003e\u003e /mnt/data/teamcity/config/database.properties'\nExecStart=/bin/bash -c 'echo connectionUrl=jdbc\\:mysql\\://${RDSAddress}/teamcitydb \u003e\u003e /mnt/data/teamcity/config/database.properties'\n[Install]\nWantedBy=multi-user.target\n"},{"name":"teamcity-server.service","enable":true,"contents":"[Unit]\nDescription=TeamCity Server\nAfter=docker.service mnt-data.mount get-mysql-connector.service prepare-db-properties.service\nRequires=docker.service mnt-data.mount get-mysql-connector.service prepare-db-properties.service\n[Service]\nTimeoutStartSec=1200s\nExecStart=/usr/bin/docker run \\\n-v /mnt/data/teamcity:/data/teamcity_server/datadir \\\n-v /mnt/data/logs/teamcity:/opt/teamcity/logs \\\n-p 80:8111 \\\n--name teamcity-server \\\njetbrains/teamcity-server:latest\nExecStop=-/usr/bin/docker exec teamcity-server /opt/teamcity/bin/teamcity-server.sh stop 60\nExecStopPost=-/usr/bin/docker stop teamcity-server\nExecStopPost=-/usr/bin/docker rm teamcity-server\nRestart=always\n[Install]\nWantedBy=multi-user.target"}]},"networkd":{},"passwd":{}}
                   - { RDSAddress: !GetAtt [RDSDB, Endpoint.Address] }
 
 
@@ -156,7 +193,7 @@ Resources:
             AllocatedStorage: '5'
             DBInstanceClass: !Ref 'DBInstanceType'
             DBInstanceIdentifier: !Sub TeamCity-${AWS::StackName}
-            DBName: !Join ['', ['teamcity', !Ref 'AWS::StackName', 'db']]
+            DBName: 'teamcitydb'
             DBSubnetGroupName: !Ref 'RDSSubnetGroup'
             VPCSecurityGroups:
             - Ref: RDSSecurityGroup
@@ -201,6 +238,7 @@ Resources:
         Type: AWS::EC2::EIP
         Properties:
             InstanceId: !Ref EC2Instance
+            Domain: "vpc"
 
 
     VPC:

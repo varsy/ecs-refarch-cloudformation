@@ -61,7 +61,7 @@ systemd:
         ExecStart=/usr/bin/mkdir -p /mnt/data/teamcity/config
         ExecStart=/bin/bash -c 'echo connectionProperties.user=teamcity > /mnt/data/teamcity/config/database.properties'
         ExecStart=/bin/bash -c 'echo connectionProperties.password=t34mc1ty >> /mnt/data/teamcity/config/database.properties'
-        ExecStart=/bin/bash -c 'echo connectionUrl=jdbc\:mysql\://${RDSAddress}/teamcity${AWS::StackName}db >> /mnt/data/teamcity/config/database.properties'
+        ExecStart=/bin/bash -c 'echo connectionUrl=jdbc\:mysql\://${RDSAddress}/teamcitydb >> /mnt/data/teamcity/config/database.properties'
         [Install]
         WantedBy=multi-user.target
     - name: teamcity-server.service
