@@ -76,12 +76,33 @@ systemd:
         ExecStart=/usr/bin/docker run \
         -v /mnt/data/teamcity:/data/teamcity_server/datadir \
         -v /mnt/data/logs/teamcity:/opt/teamcity/logs \
+        -v /mnt/data/temp/teamcity:/opt/teamcity/temp \
         -p 80:8111 \
         --name teamcity-server \
         jetbrains/teamcity-server:latest
         ExecStop=-/usr/bin/docker exec teamcity-server /opt/teamcity/bin/teamcity-server.sh stop 60
         ExecStopPost=-/usr/bin/docker stop teamcity-server
         ExecStopPost=-/usr/bin/docker rm teamcity-server
+        Restart=always
+        [Install]
+        WantedBy=multi-user.target
+    - name: teamcity-agent.service
+      enable: true
+      contents: |
+        [Unit]
+        Description=TeamCity Agent
+        After=teamcity-server.service coreos-metadata.service
+        Requires=teamcity-server.service coreos-metadata.service
+        [Service]
+        TimeoutStartSec=1200s
+        EnvironmentFile=/run/metadata/coreos
+        ExecStart=/usr/bin/docker run \
+        -v /mnt/data/temp/teamcity:/opt/teamcity/temp \
+        -e SERVER_URL=${COREOS_EC2_IPV4_LOCAL} \
+        --name teamcity-agent \
+        jetbrains/teamcity-agent:latest
+        ExecStop=-/usr/bin/docker stop teamcity-agent
+        ExecStopPost=-/usr/bin/docker rm teamcity-agent
         Restart=always
         [Install]
         WantedBy=multi-user.target
